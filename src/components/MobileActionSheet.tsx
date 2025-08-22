@@ -321,30 +321,17 @@ const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             {/* 播放源列表 */}
             <div className="max-h-32 overflow-y-auto">
               <div className="grid grid-cols-2 gap-2">
-                {(() => {
-                  // 优先显示的播放源
-                  const prioritySources = ['爱奇艺', '腾讯视频', '优酷', '芒果TV', '哔哩哔哩', 'Netflix', 'Disney+'];
-                  const sortedSources = sources.sort((a, b) => {
-                    const aIndex = prioritySources.indexOf(a);
-                    const bIndex = prioritySources.indexOf(b);
-                    if (aIndex !== -1 && bIndex !== -1) return aIndex - bIndex;
-                    if (aIndex !== -1) return -1;
-                    if (bIndex !== -1) return 1;
-                    return a.localeCompare(b);
-                  });
-
-                  return sortedSources.map((source, index) => (
-                    <div
-                      key={index}
-                      className="flex items-center gap-2 py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/30"
-                    >
-                      <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full flex-shrink-0" />
-                      <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                        {source}
-                      </span>
-                    </div>
-                  ));
-                })()}
+                {sources.map((source, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 py-2 px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/30"
+                  >
+                    <div className="w-1 h-1 bg-gray-400 dark:bg-gray-500 rounded-full flex-shrink-0" />
+                    <span className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                      {source}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

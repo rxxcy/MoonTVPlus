@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any,react-hooks/exhaustive-deps,@typescript-eslint/no-empty-function */
 
-import { Heart, Link, PlayCircleIcon, Trash2 } from 'lucide-react';
+import { ExternalLink, Heart, Link, PlayCircleIcon, Trash2 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import React, {
@@ -236,6 +236,31 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
     actualSearchType,
   ]);
 
+  // 新标签页播放处理函数
+  const handlePlayInNewTab = useCallback(() => {
+    if (from === 'douban' || (isAggregate && !actualSource && !actualId)) {
+      const url = `/play?title=${encodeURIComponent(actualTitle.trim())}${actualYear ? `&year=${actualYear}` : ''
+        }${actualSearchType ? `&stype=${actualSearchType}` : ''}${isAggregate ? '&prefer=true' : ''}${actualQuery ? `&stitle=${encodeURIComponent(actualQuery.trim())}` : ''}`;
+      window.open(url, '_blank');
+    } else if (actualSource && actualId) {
+      const url = `/play?source=${actualSource}&id=${actualId}&title=${encodeURIComponent(
+        actualTitle
+      )}${actualYear ? `&year=${actualYear}` : ''}${isAggregate ? '&prefer=true' : ''
+        }${actualQuery ? `&stitle=${encodeURIComponent(actualQuery.trim())}` : ''
+        }${actualSearchType ? `&stype=${actualSearchType}` : ''}`;
+      window.open(url, '_blank');
+    }
+  }, [
+    from,
+    actualSource,
+    actualId,
+    actualTitle,
+    actualYear,
+    isAggregate,
+    actualQuery,
+    actualSearchType,
+  ]);
+
   // 检查搜索结果的收藏状态
   const checkSearchFavoriteStatus = useCallback(async () => {
     if (from === 'search' && !isAggregate && actualSource && actualId && searchFavorited === null) {
@@ -326,6 +351,15 @@ const VideoCard = forwardRef<VideoCardHandle, VideoCardProps>(function VideoCard
         icon: <PlayCircleIcon size={20} />,
         onClick: handleClick,
         color: 'primary' as const,
+      });
+
+      // 新标签页播放
+      actions.push({
+        id: 'play-new-tab',
+        label: '新标签页播放',
+        icon: <ExternalLink size={20} />,
+        onClick: handlePlayInNewTab,
+        color: 'default' as const,
       });
     }
 

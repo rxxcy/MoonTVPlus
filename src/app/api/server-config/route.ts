@@ -12,20 +12,21 @@ export async function GET(request: NextRequest) {
 
   const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
+  // 观影室配置从环境变量读取
+  const watchRoomConfig = {
+    enabled: process.env.WATCH_ROOM_ENABLED === 'true',
+    serverType: (process.env.WATCH_ROOM_SERVER_TYPE as 'internal' | 'external') || 'internal',
+    externalServerUrl: process.env.WATCH_ROOM_EXTERNAL_SERVER_URL,
+    externalServerAuth: process.env.WATCH_ROOM_EXTERNAL_SERVER_AUTH,
+  };
+
   // 如果使用 localStorage，返回默认配置
   if (storageType === 'localstorage') {
     return NextResponse.json({
       SiteName: process.env.NEXT_PUBLIC_SITE_NAME || 'MoonTV',
       StorageType: 'localstorage',
       Version: CURRENT_VERSION,
-      // localStorage 模式下，返回默认观影室配置
-      // 可以通过环境变量控制是否启用
-      WatchRoom: {
-        enabled: process.env.WATCH_ROOM_ENABLED === 'true',
-        serverType: 'internal',
-        externalServerUrl: undefined,
-        externalServerAuth: undefined,
-      },
+      WatchRoom: watchRoomConfig,
     });
   }
 
@@ -35,13 +36,7 @@ export async function GET(request: NextRequest) {
     SiteName: config.SiteConfig.SiteName,
     StorageType: storageType,
     Version: CURRENT_VERSION,
-    // 添加观影室配置（供所有用户访问）
-    WatchRoom: {
-      enabled: config.WatchRoomConfig?.enabled ?? false,
-      serverType: config.WatchRoomConfig?.serverType ?? 'internal',
-      externalServerUrl: config.WatchRoomConfig?.externalServerUrl,
-      externalServerAuth: config.WatchRoomConfig?.externalServerAuth,
-    },
+    WatchRoom: watchRoomConfig,
   };
   return NextResponse.json(result);
 }

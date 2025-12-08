@@ -63,12 +63,6 @@ export interface AdminConfig {
     channelNumber?: number;
     disabled?: boolean;
   }[];
-  WatchRoomConfig?: {
-    enabled: boolean;
-    serverType: 'internal' | 'external';
-    externalServerUrl?: string;
-    externalServerAuth?: string;
-  };
 }
 
 export interface AdminConfigResult {

@@ -13,78 +13,16 @@ const handle = app.getRequestHandler();
 
 // 读取观影室配置的辅助函数
 async function getWatchRoomConfig() {
-  const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
+  // 观影室配置现在统一从环境变量读取
+  const config = {
+    enabled: process.env.WATCH_ROOM_ENABLED === 'true',
+    serverType: (process.env.WATCH_ROOM_SERVER_TYPE || 'internal'),
+    externalServerUrl: process.env.WATCH_ROOM_EXTERNAL_SERVER_URL,
+    externalServerAuth: process.env.WATCH_ROOM_EXTERNAL_SERVER_AUTH,
+  };
 
-  // 如果使用 localStorage，无法在服务器端读取，返回默认配置（不启用）
-  if (storageType === 'localstorage') {
-    console.log('[WatchRoom] Using localStorage storage type.');
-    // 在 localStorage 模式下，可以通过环境变量控制是否启用观影室
-    const enabled = process.env.WATCH_ROOM_ENABLED === 'true';
-    console.log(`[WatchRoom] Watch room ${enabled ? 'enabled' : 'disabled'} via environment variable.`);
-    return { enabled, serverType: 'internal' };
-  }
-
-  try {
-    if (storageType === 'redis') {
-      // 检查 Redis 配置
-      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-      console.log('[WatchRoom] Attempting to read config from Redis...');
-
-      const { createClient } = require('redis');
-      const client = createClient({ url: redisUrl });
-      await client.connect();
-
-      const configStr = await client.get('admin:config'); // 注意：使用冒号而不是下划线
-      await client.disconnect();
-
-      if (configStr) {
-        const config = JSON.parse(configStr);
-        return config.WatchRoomConfig || { enabled: false, serverType: 'internal' };
-      }
-    } else if (storageType === 'upstash') {
-      // 检查 Upstash 环境变量
-      if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-        console.log('[WatchRoom] Upstash credentials not configured. Socket.IO disabled by default.');
-        return { enabled: false, serverType: 'internal' };
-      }
-
-      console.log('[WatchRoom] Attempting to read config from Upstash...');
-      const { Redis } = require('@upstash/redis');
-      const redis = new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN,
-      });
-
-      const configStr = await redis.get('admin:config'); // 注意：使用冒号而不是下划线
-
-      if (configStr) {
-        const config = typeof configStr === 'string' ? JSON.parse(configStr) : configStr;
-        return config.WatchRoomConfig || { enabled: false, serverType: 'internal' };
-      }
-    } else if (storageType === 'kvrocks') {
-      // 检查 Kvrocks 配置
-      const kvrocksUrl = process.env.KVROCKS_URL || 'redis://localhost:6666';
-      console.log('[WatchRoom] Attempting to read config from Kvrocks...');
-
-      const { createClient } = require('redis');
-      const client = createClient({ url: kvrocksUrl });
-      await client.connect();
-
-      const configStr = await client.get('admin:config'); // 注意：使用冒号而不是下划线
-      await client.disconnect();
-
-      if (configStr) {
-        const config = JSON.parse(configStr);
-        return config.WatchRoomConfig || { enabled: false, serverType: 'internal' };
-      }
-    }
-  } catch (error) {
-    console.error('[WatchRoom] Failed to read config from storage:', error.message);
-  }
-
-  // 默认不启用观影室
-  console.log('[WatchRoom] No config found or error occurred. Socket.IO disabled by default.');
-  return { enabled: false, serverType: 'internal' };
+  console.log(`[WatchRoom] Watch room ${config.enabled ? 'enabled' : 'disabled'} via environment variable.`);
+  return config;
 }
 
 // 观影室服务器类

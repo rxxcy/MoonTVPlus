@@ -5,25 +5,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import nodeFetch from 'node-fetch';
 
 export const runtime = 'nodejs';
-
-// 代理 agent 缓存
-const proxyAgentCache = new Map<string, HttpsProxyAgent<string>>();
-
-function getProxyAgent(proxy: string): HttpsProxyAgent<string> {
-  if (!proxyAgentCache.has(proxy)) {
-    const agent = new HttpsProxyAgent(proxy, {
-      timeout: 30000,
-      keepAlive: true,
-      keepAliveMsecs: 60000,
-      maxSockets: 10,
-      maxFreeSockets: 5,
-    });
-    proxyAgentCache.set(proxy, agent);
-  }
-  return proxyAgentCache.get(proxy)!;
-}
 
 /**
  * GET /api/tmdb/search?query=xxx
@@ -59,14 +43,18 @@ export async function GET(request: NextRequest) {
 
     const fetchOptions: any = tmdbProxy
       ? {
-          agent: getProxyAgent(tmdbProxy),
+          agent: new HttpsProxyAgent(tmdbProxy, {
+            timeout: 30000,
+            keepAlive: false,
+          }),
           signal: AbortSignal.timeout(30000),
         }
       : {
           signal: AbortSignal.timeout(15000),
         };
 
-    const response = await fetch(url, fetchOptions);
+    // 使用 node-fetch 而不是原生 fetch
+    const response = await nodeFetch(url, fetchOptions);
 
     if (!response.ok) {
       console.error('TMDB 搜索失败:', response.status, response.statusText);

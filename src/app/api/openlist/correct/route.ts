@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
+import { db } from '@/lib/db';
 import { OpenListClient } from '@/lib/openlist.client';
 import {
   getCachedMetaInfo,
@@ -53,35 +54,21 @@ export async function POST(request: NextRequest) {
       openListConfig.Password
     );
 
-    // 读取现有 metainfo.json
+    // 读取现有 metainfo (从数据库或缓存)
     let metaInfo: MetaInfo | null = getCachedMetaInfo(rootPath);
 
     if (!metaInfo) {
       try {
-        const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-        const fileResponse = await client.getFile(metainfoPath);
+        console.log('[OpenList Correct] 尝试从数据库读取 metainfo');
+        const metainfoJson = await db.getGlobalValue('video.metainfo');
 
-        if (fileResponse.code === 200 && fileResponse.data.raw_url) {
-          const downloadUrl = fileResponse.data.raw_url;
-          const contentResponse = await fetch(downloadUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': '*/*',
-              'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            },
-          });
-
-          if (!contentResponse.ok) {
-            throw new Error(`下载失败: ${contentResponse.status}`);
-          }
-
-          const content = await contentResponse.text();
-          metaInfo = JSON.parse(content);
+        if (metainfoJson) {
+          metaInfo = JSON.parse(metainfoJson);
         }
       } catch (error) {
-        console.error('[OpenList Correct] 读取 metainfo.json 失败:', error);
+        console.error('[OpenList Correct] 从数据库读取 metainfo 失败:', error);
         return NextResponse.json(
-          { error: 'metainfo.json 读取失败' },
+          { error: 'metainfo 读取失败' },
           { status: 500 }
         );
       }
@@ -107,11 +94,10 @@ export async function POST(request: NextRequest) {
       failed: false, // 纠错后标记为成功
     };
 
-    // 保存 metainfo.json
-    const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-    const metainfoContent = JSON.stringify(metaInfo, null, 2);
+    // 保存 metainfo 到数据库
+    const metainfoContent = JSON.stringify(metaInfo);
 
-    await client.uploadFile(metainfoPath, metainfoContent);
+    await db.setGlobalValue('video.metainfo', metainfoContent);
 
     // 更新缓存
     invalidateMetaInfoCache(rootPath);

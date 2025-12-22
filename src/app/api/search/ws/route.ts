@@ -80,37 +80,25 @@ export async function GET(request: NextRequest) {
       // 搜索 OpenList（如果配置了）
       if (hasOpenList) {
         try {
-          const { getCachedMetaInfo } = await import('@/lib/openlist-cache');
+          const { getCachedMetaInfo, setCachedMetaInfo } = await import('@/lib/openlist-cache');
           const { getTMDBImageUrl } = await import('@/lib/tmdb.search');
-          const { OpenListClient } = await import('@/lib/openlist.client');
+          const { db } = await import('@/lib/db');
 
           const rootPath = config.OpenListConfig!.RootPath || '/';
           let metaInfo = getCachedMetaInfo(rootPath);
 
-          // 如果没有缓存，尝试从 OpenList 读取
+          // 如果没有缓存，尝试从数据库读取
           if (!metaInfo) {
             try {
-              const client = new OpenListClient(
-                config.OpenListConfig!.URL,
-                config.OpenListConfig!.Token
-              );
-              const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-              const fileResponse = await client.getFile(metainfoPath);
-
-              if (fileResponse.code === 200 && fileResponse.data.raw_url) {
-                const downloadUrl = fileResponse.data.raw_url;
-                const contentResponse = await fetch(downloadUrl, {
-                  headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept': '*/*',
-                    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-                  },
-                });
-                const content = await contentResponse.text();
-                metaInfo = JSON.parse(content);
+              const metainfoJson = await db.getGlobalValue('video.metainfo');
+              if (metainfoJson) {
+                metaInfo = JSON.parse(metainfoJson);
+                if (metaInfo) {
+                  setCachedMetaInfo(rootPath, metaInfo);
+                }
               }
             } catch (error) {
-              console.error('[Search WS] 读取 metainfo.json 失败:', error);
+              console.error('[Search WS] 从数据库读取 metainfo 失败:', error);
             }
           }
 

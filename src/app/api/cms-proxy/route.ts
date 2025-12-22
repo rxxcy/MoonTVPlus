@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getConfig } from '@/lib/config';
+import { db } from '@/lib/db';
 import { OpenListClient } from '@/lib/openlist.client';
 import {
   getCachedMetaInfo,
@@ -273,30 +274,19 @@ async function handleOpenListProxy(request: NextRequest) {
   const rootPath = openListConfig.RootPath || '/';
   const client = new OpenListClient(openListConfig.URL, openListConfig.Token);
 
-  // 读取 metainfo.json
+  // 读取 metainfo (从数据库或缓存)
   let metaInfo: MetaInfo | null = getCachedMetaInfo(rootPath);
 
   if (!metaInfo) {
     try {
-      const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-      const fileResponse = await client.getFile(metainfoPath);
-
-      if (fileResponse.code === 200 && fileResponse.data.raw_url) {
-        const downloadUrl = fileResponse.data.raw_url;
-        const contentResponse = await fetch(downloadUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          },
-        });
-        const content = await contentResponse.text();
-        metaInfo = JSON.parse(content) as MetaInfo;
+      const metainfoJson = await db.getGlobalValue('video.metainfo');
+      if (metainfoJson) {
+        metaInfo = JSON.parse(metainfoJson) as MetaInfo;
         setCachedMetaInfo(rootPath, metaInfo);
       }
     } catch (error) {
       return NextResponse.json(
-        { code: 0, msg: 'metainfo.json 不存在', list: [] },
+        { code: 0, msg: 'metainfo 不存在', list: [] },
         { status: 200 }
       );
     }

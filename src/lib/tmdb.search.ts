@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { HttpsProxyAgent } from 'https-proxy-agent';
+import nodeFetch from 'node-fetch';
 
 export interface TMDBSearchResult {
   id: number;
@@ -21,29 +22,6 @@ interface TMDBSearchResponse {
   total_results: number;
 }
 
-// 代理 agent 缓存，避免每次都创建新实例
-const proxyAgentCache = new Map<string, HttpsProxyAgent<string>>();
-
-/**
- * 获取或创建代理 agent（复用连接池）
- */
-function getProxyAgent(proxy: string): HttpsProxyAgent<string> {
-  if (!proxyAgentCache.has(proxy)) {
-    const agent = new HttpsProxyAgent(proxy, {
-      // 增加超时时间
-      timeout: 30000, // 30秒
-      // 保持连接活跃
-      keepAlive: true,
-      keepAliveMsecs: 60000, // 60秒
-      // 最大空闲连接数
-      maxSockets: 10,
-      maxFreeSockets: 5,
-    });
-    proxyAgentCache.set(proxy, agent);
-  }
-  return proxyAgentCache.get(proxy)!;
-}
-
 /**
  * 搜索 TMDB (电影+电视剧)
  */
@@ -59,26 +37,28 @@ export async function searchTMDB(
 
     // 使用 multi search 同时搜索电影和电视剧
     const url = `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&language=zh-CN&query=${encodeURIComponent(query)}&page=1`;
-
+	
     const fetchOptions: any = proxy
       ? {
-          agent: getProxyAgent(proxy),
-          // 设置请求超时（30秒）
+          agent: new HttpsProxyAgent(proxy, {
+            timeout: 30000,
+            keepAlive: false,
+          }),
           signal: AbortSignal.timeout(30000),
         }
       : {
-          // 即使不用代理也设置超时
           signal: AbortSignal.timeout(15000),
         };
 
-    const response = await fetch(url, fetchOptions);
+    // 使用 node-fetch 而不是原生 fetch，因为原生 fetch 不支持 agent 选项
+    const response = await nodeFetch(url, fetchOptions);
 
     if (!response.ok) {
       console.error('TMDB 搜索失败:', response.status, response.statusText);
       return { code: response.status, result: null };
     }
 
-    const data: TMDBSearchResponse = await response.json();
+    const data: TMDBSearchResponse = await response.json() as TMDBSearchResponse;
 
     // 过滤出电影和电视剧，取第一个结果
     const validResults = data.results.filter(

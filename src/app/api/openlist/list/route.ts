@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getConfig } from '@/lib/config';
+import { db } from '@/lib/db';
 import { OpenListClient } from '@/lib/openlist.client';
 import {
   getCachedMetaInfo,
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
       openListConfig.Password
     );
 
-    // 读取 metainfo.json
+    // 读取 metainfo (从数据库或缓存)
     let metaInfo: MetaInfo | null = getCachedMetaInfo(rootPath);
 
     console.log('[OpenList List] 缓存检查:', {
@@ -58,40 +59,15 @@ export async function GET(request: NextRequest) {
 
     if (!metaInfo) {
       try {
-        const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-        console.log('[OpenList List] 尝试读取 metainfo.json:', metainfoPath);
+        console.log('[OpenList List] 尝试从数据库读取 metainfo');
 
-        const fileResponse = await client.getFile(metainfoPath);
-        console.log('[OpenList List] getFile 完整响应:', JSON.stringify(fileResponse, null, 2));
+        const metainfoJson = await db.getGlobalValue('video.metainfo');
 
-        if (fileResponse.code === 200 && fileResponse.data.raw_url) {
-          console.log('[OpenList List] 使用 raw_url 获取文件内容');
-
-          const downloadUrl = fileResponse.data.raw_url;
-          console.log('[OpenList List] 下载 URL:', downloadUrl);
-
-          const contentResponse = await fetch(downloadUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': '*/*',
-              'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            },
-          });
-          console.log('[OpenList List] fetch 响应:', {
-            status: contentResponse.status,
-            ok: contentResponse.ok,
-          });
-
-          if (!contentResponse.ok) {
-            throw new Error(`获取文件内容失败: ${contentResponse.status}`);
-          }
-
-          const content = await contentResponse.text();
-          console.log('[OpenList List] 文件内容长度:', content.length);
-          console.log('[OpenList List] 文件内容预览:', content.substring(0, 200));
+        if (metainfoJson) {
+          console.log('[OpenList List] 从数据库获取到数据，长度:', metainfoJson.length);
 
           try {
-            metaInfo = JSON.parse(content);
+            metaInfo = JSON.parse(metainfoJson);
             console.log('[OpenList List] JSON 解析成功');
             console.log('[OpenList List] metaInfo 结构:', {
               hasfolders: !!metaInfo?.folders,
@@ -114,18 +90,13 @@ export async function GET(request: NextRequest) {
             throw new Error(`JSON 解析失败: ${(parseError as Error).message}`);
           }
         } else {
-          console.error('[OpenList List] getFile 失败或无 sign:', {
-            code: fileResponse.code,
-            message: fileResponse.message,
-            data: fileResponse.data,
-          });
-          throw new Error(`getFile 返回错误: code=${fileResponse.code}, message=${fileResponse.message}`);
+          throw new Error('数据库中没有 metainfo 数据');
         }
       } catch (error) {
-        console.error('[OpenList List] 读取 metainfo.json 失败:', error);
+        console.error('[OpenList List] 从数据库读取 metainfo 失败:', error);
         return NextResponse.json(
           {
-            error: 'metainfo.json 读取失败',
+            error: 'metainfo 读取失败',
             details: (error as Error).message,
             list: [],
             total: 0,

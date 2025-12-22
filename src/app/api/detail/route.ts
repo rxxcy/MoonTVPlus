@@ -32,35 +32,24 @@ export async function GET(request: NextRequest) {
 
       const rootPath = openListConfig.RootPath || '/';
 
-      // 1. 读取 metainfo.json 获取元数据
+      // 1. 读取 metainfo 获取元数据
       let metaInfo: any = null;
       try {
-        const { OpenListClient } = await import('@/lib/openlist.client');
-        const { getCachedMetaInfo } = await import('@/lib/openlist-cache');
+        const { getCachedMetaInfo, setCachedMetaInfo } = await import('@/lib/openlist-cache');
         const { getTMDBImageUrl } = await import('@/lib/tmdb.search');
+        const { db } = await import('@/lib/db');
 
-        const client = new OpenListClient(openListConfig.URL, openListConfig.Token);
         metaInfo = getCachedMetaInfo(rootPath);
 
         if (!metaInfo) {
-          const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-          const fileResponse = await client.getFile(metainfoPath);
-
-          if (fileResponse.code === 200 && fileResponse.data.raw_url) {
-            const downloadUrl = fileResponse.data.raw_url;
-            const contentResponse = await fetch(downloadUrl, {
-              headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-              },
-            });
-            const content = await contentResponse.text();
-            metaInfo = JSON.parse(content);
+          const metainfoJson = await db.getGlobalValue('video.metainfo');
+          if (metainfoJson) {
+            metaInfo = JSON.parse(metainfoJson);
+            setCachedMetaInfo(rootPath, metaInfo);
           }
         }
       } catch (error) {
-        console.error('[Detail] 读取 metainfo.json 失败:', error);
+        console.error('[Detail] 从数据库读取 metainfo 失败:', error);
       }
 
       // 2. 调用 openlist detail API

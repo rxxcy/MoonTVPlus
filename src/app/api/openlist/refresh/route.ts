@@ -117,54 +117,25 @@ async function performScan(
   updateScanTaskProgress(taskId, 0, 0);
 
   try {
-    // 1. 读取现有 metainfo.json (如果存在)
+    // 1. 读取现有 metainfo (从数据库或缓存)
     let existingMetaInfo: MetaInfo | null = getCachedMetaInfo(rootPath);
 
     if (!existingMetaInfo) {
       try {
-        const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-        console.log('[OpenList Refresh] 尝试读取现有 metainfo.json:', metainfoPath);
+        console.log('[OpenList Refresh] 尝试从数据库读取 metainfo');
+        const metainfoJson = await db.getGlobalValue('video.metainfo');
 
-        const fileResponse = await client.getFile(metainfoPath);
-        console.log('[OpenList Refresh] getFile 完整响应:', JSON.stringify(fileResponse, null, 2));
-
-        if (fileResponse.code === 200 && fileResponse.data.raw_url) {
-          const downloadUrl = fileResponse.data.raw_url;
-          console.log('[OpenList Refresh] 下载 URL:', downloadUrl);
-
-          const contentResponse = await fetch(downloadUrl, {
-            headers: {
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-              'Accept': '*/*',
-              'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-            },
-          });
-
-          console.log('[OpenList Refresh] fetch 响应:', {
-            status: contentResponse.status,
-            ok: contentResponse.ok,
-          });
-
-          if (!contentResponse.ok) {
-            throw new Error(`下载失败: ${contentResponse.status}`);
-          }
-
-          const content = await contentResponse.text();
-          console.log('[OpenList Refresh] 文件内容:', {
-            length: content.length,
-            preview: content.substring(0, 300),
-          });
-
-          existingMetaInfo = JSON.parse(content);
-          console.log('[OpenList Refresh] 读取到现有数据:', {
+        if (metainfoJson) {
+          existingMetaInfo = JSON.parse(metainfoJson);
+          console.log('[OpenList Refresh] 从数据库读取到现有数据:', {
             hasfolders: !!existingMetaInfo?.folders,
             foldersType: typeof existingMetaInfo?.folders,
             videoCount: Object.keys(existingMetaInfo?.folders || {}).length,
           });
         }
       } catch (error) {
-        console.error('[OpenList Refresh] 读取 metainfo.json 失败:', error);
-        console.log('[OpenList Refresh] 将创建新文件');
+        console.error('[OpenList Refresh] 从数据库读取 metainfo 失败:', error);
+        console.log('[OpenList Refresh] 将创建新数据');
       }
     } else {
       console.log('[OpenList Refresh] 使用缓存的 metainfo，视频数:', Object.keys(existingMetaInfo.folders).length);
@@ -294,41 +265,23 @@ async function performScan(
       }
     }
 
-    // 4. 更新 metainfo.json
+    // 4. 保存 metainfo 到数据库
     metaInfo.last_refresh = Date.now();
 
-    const metainfoPath = `${rootPath}${rootPath.endsWith('/') ? '' : '/'}metainfo.json`;
-    const metainfoContent = JSON.stringify(metaInfo, null, 2);
-    console.log('[OpenList Refresh] 上传 metainfo.json:', {
-      path: metainfoPath,
+    const metainfoContent = JSON.stringify(metaInfo);
+    console.log('[OpenList Refresh] 保存 metainfo 到数据库:', {
       videoCount: Object.keys(metaInfo.folders).length,
       contentLength: metainfoContent.length,
-      contentPreview: metainfoContent.substring(0, 300),
     });
 
-    await client.uploadFile(metainfoPath, metainfoContent);
-    console.log('[OpenList Refresh] 上传成功');
+    await db.setGlobalValue('video.metainfo', metainfoContent);
+    console.log('[OpenList Refresh] 保存成功');
 
-    // 验证上传：立即读取文件
+    // 验证保存：立即读取数据库
     try {
-      console.log('[OpenList Refresh] 验证上传：读取文件');
-      const verifyResponse = await client.getFile(metainfoPath);
-      if (verifyResponse.code === 200 && verifyResponse.data.raw_url) {
-        const downloadUrl = verifyResponse.data.raw_url;
-        const verifyContentResponse = await fetch(downloadUrl, {
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept': '*/*',
-            'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-          },
-        });
-        const verifyContent = await verifyContentResponse.text();
-        console.log('[OpenList Refresh] 验证读取成功:', {
-          contentLength: verifyContent.length,
-          contentPreview: verifyContent.substring(0, 300),
-        });
-
-        // 尝试解析
+      console.log('[OpenList Refresh] 验证保存：读取数据库');
+      const verifyContent = await db.getGlobalValue('video.metainfo');
+      if (verifyContent) {
         const verifyParsed = JSON.parse(verifyContent);
         console.log('[OpenList Refresh] 验证解析成功:', {
           hasfolders: !!verifyParsed.folders,

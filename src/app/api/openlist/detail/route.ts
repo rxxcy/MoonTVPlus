@@ -125,14 +125,7 @@ export async function GET(request: NextRequest) {
         };
       }
 
-      // 保存 videoinfo.json
-      const videoinfoPath = `${folderPath}/videoinfo.json`;
-      await client.uploadFile(
-        videoinfoPath,
-        JSON.stringify(videoInfo, null, 2)
-      );
-
-      // 缓存
+      // 仅缓存到内存，不再持久化到 OpenList
       setCachedVideoInfo(folderPath, videoInfo);
     }
 

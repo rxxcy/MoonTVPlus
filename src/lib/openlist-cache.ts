@@ -11,7 +11,7 @@ interface VideoInfoCacheEntry {
 }
 
 const METAINFO_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7天
-const VIDEOINFO_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 1天
+const VIDEOINFO_CACHE_TTL_MS = 60 * 60 * 1000; // 1小时
 
 const METAINFO_CACHE: Map<string, MetaInfoCacheEntry> = new Map();
 const VIDEOINFO_CACHE: Map<string, VideoInfoCacheEntry> = new Map();
